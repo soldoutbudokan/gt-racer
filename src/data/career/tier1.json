@@ -1,0 +1,52 @@
+{
+  "tier": 1,
+  "name": "Amateur League",
+  "starsToUnlock": 0,
+  "availableCars": [
+    "sedan-sport",
+    "coupe-gt"
+  ],
+  "events": [
+    {
+      "id": "t1_e1",
+      "name": "First Drive",
+      "type": "circuit",
+      "track": "azure-coast",
+      "laps": 2,
+      "opponents": 3,
+      "reward": 5000,
+      "description": "Your first race. Show them what you've got!"
+    },
+    {
+      "id": "t1_e2",
+      "name": "Coastal Challenge",
+      "type": "circuit",
+      "track": "azure-coast",
+      "laps": 3,
+      "opponents": 5,
+      "reward": 8000,
+      "description": "A longer race along the beautiful coast."
+    },
+    {
+      "id": "t1_e3",
+      "name": "Time Attack",
+      "type": "time-trial",
+      "track": "azure-coast",
+      "laps": 1,
+      "opponents": 0,
+      "targetTime": 90,
+      "reward": 6000,
+      "description": "Beat the target time to earn your stars."
+    },
+    {
+      "id": "t1_e4",
+      "name": "Pack Battle",
+      "type": "circuit",
+      "track": "azure-coast",
+      "laps": 3,
+      "opponents": 7,
+      "reward": 12000,
+      "description": "Full grid racing. Fight through the pack!"
+    }
+  ]
+}

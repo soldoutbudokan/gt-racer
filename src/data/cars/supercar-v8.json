@@ -1,0 +1,94 @@
+{
+  "name": "Supercar V8",
+  "tier": 2,
+  "price": 85000,
+  "specs": {
+    "mass": 1500,
+    "power": 450,
+    "topSpeed": 310
+  },
+  "engine": {
+    "torqueCurve": [
+      [
+        1000,
+        150
+      ],
+      [
+        2500,
+        320
+      ],
+      [
+        4000,
+        420
+      ],
+      [
+        5500,
+        450
+      ],
+      [
+        7000,
+        400
+      ],
+      [
+        8000,
+        340
+      ]
+    ],
+    "idleRpm": 700,
+    "redlineRpm": 8000,
+    "maxRpm": 8500
+  },
+  "transmission": {
+    "gearRatios": [
+      3.0,
+      2.2,
+      1.6,
+      1.2,
+      0.95,
+      0.78,
+      0.65
+    ],
+    "reverseRatio": -2.8,
+    "finalDrive": 3.3,
+    "drivetrainLoss": 0.12
+  },
+  "suspension": {
+    "front": {
+      "springRate": 60000,
+      "dampingRate": 3800,
+      "restLength": 0.3,
+      "maxTravel": 0.16
+    },
+    "rear": {
+      "springRate": 55000,
+      "dampingRate": 3500,
+      "restLength": 0.3,
+      "maxTravel": 0.16
+    }
+  },
+  "tires": {
+    "front": {
+      "peakGrip": 1.4,
+      "stiffness": 11,
+      "shape": 1.35,
+      "radius": 0.34
+    },
+    "rear": {
+      "peakGrip": 1.35,
+      "stiffness": 10.5,
+      "shape": 1.45,
+      "radius": 0.35
+    }
+  },
+  "aero": {
+    "dragCoefficient": 0.34,
+    "frontalArea": 2.0,
+    "downforceCoefficient": 0.25
+  },
+  "dimensions": {
+    "wheelbase": 2.65,
+    "trackWidth": 1.65,
+    "cgHeight": 0.4
+  },
+  "color": "#FFD700"
+}
