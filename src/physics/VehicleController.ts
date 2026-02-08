@@ -24,9 +24,16 @@ export class VehicleController {
   
   private chassisBody: any;
   private world: any;
+  private rapier: any;
   private maxSteerAngle = 0.5;
   private brakeForce = 8000;
   private handbrakeForce = 12000;
+
+  private assists = {
+    tractionControl: false,
+    abs: false,
+    steeringAssist: false,
+  };
 
   constructor(config: VehicleConfig) {
     this.config = config;
@@ -103,9 +110,14 @@ export class VehicleController {
     };
   }
 
-  setChassisBody(body: any, world: any): void {
+  setChassisBody(body: any, world: any, rapier?: any): void {
     this.chassisBody = body;
     this.world = world;
+    if (rapier) this.rapier = rapier;
+  }
+
+  setAssists(assists: { tractionControl: boolean; abs: boolean; steeringAssist: boolean }): void {
+    this.assists = assists;
   }
 
   private getLinearVelocity(): THREE.Vector3 {
@@ -140,6 +152,18 @@ export class VehicleController {
     const speed = velocity.length();
     const forwardSpeed = velocity.dot(chassisForward);
 
+    // Apply driving assists
+    let effectiveThrottle = input.throttle;
+    let effectiveBrake = input.brake;
+    let effectiveSteering = input.steering;
+
+    // Steering assist: reduce max steer at high speed
+    if (this.assists.steeringAssist) {
+      const speedKmh = speed * 3.6;
+      const reduction = Math.min(speedKmh / 108, 1) * 0.6; // up to 60% reduction at 108 km/h
+      effectiveSteering = input.steering * (1 - reduction);
+    }
+
     let avgDrivenWheelAngVel = 0;
     let drivenCount = 0;
 
@@ -160,8 +184,12 @@ export class VehicleController {
         z: rayFrom.z + rayDir.z * rayLength,
       };
 
+      const ray = this.rapier
+        ? new this.rapier.Ray(rayFrom, rayDir)
+        : { origin: rayFrom, dir: rayDir };
+
       const hit = this.world.castRay(
-        { origin: rayFrom, dir: rayDir },
+        ray,
         rayLength,
         true,
         undefined,
@@ -199,7 +227,7 @@ export class VehicleController {
         let wheelForward = chassisForward.clone();
         let wheelRight = chassisRight.clone();
         if (wheel.isSteered) {
-          const steerAngle = input.steering * this.maxSteerAngle;
+          const steerAngle = effectiveSteering * this.maxSteerAngle;
           const steerQuat = new THREE.Quaternion().setFromAxisAngle(chassisUp, steerAngle);
           wheelForward.applyQuaternion(steerQuat);
           wheelRight.applyQuaternion(steerQuat);
@@ -236,8 +264,12 @@ export class VehicleController {
         );
 
         let brakeTorque = 0;
-        if (input.brake > 0) {
-          brakeTorque = this.brakeForce * input.brake;
+        if (effectiveBrake > 0) {
+          brakeTorque = this.brakeForce * effectiveBrake;
+          // ABS: reduce brake torque when wheel is about to lock
+          if (this.assists.abs && Math.abs(ws.slipRatio) > 0.12) {
+            brakeTorque *= 0.5;
+          }
         }
         if (input.handbrake && !wheel.isSteered) {
           brakeTorque = this.handbrakeForce;
@@ -246,13 +278,13 @@ export class VehicleController {
         if (brakeTorque > 0) {
           const brakeForceLong = Math.min(brakeTorque, normalForce * wheel.tire.getPeakGrip());
           const brakeDir = wheelSpeedLong > 0 ? -1 : 1;
-          const brakeForceVec = wheelForward.clone().multiplyScalar(brakeDir * brakeForceLong * input.brake);
+          const brakeForceVec = wheelForward.clone().multiplyScalar(brakeDir * brakeForceLong * effectiveBrake);
           this.chassisBody.addForceAtPoint(
             { x: brakeForceVec.x, y: brakeForceVec.y, z: brakeForceVec.z },
             { x: contactWorldPos.x, y: contactWorldPos.y, z: contactWorldPos.z },
             true
           );
-          ws.angularVelocity *= (1 - dt * 10 * input.brake);
+          ws.angularVelocity *= (1 - dt * 10 * effectiveBrake);
         }
 
         ws.angularVelocity = wheelSpeedLong / wheel.tire.getRadius();
@@ -286,23 +318,36 @@ export class VehicleController {
       avgDrivenWheelAngVel /= drivenCount;
     }
 
-    this.drivetrain.updateRpm(avgDrivenWheelAngVel, input.throttle, dt);
+    // TCS: limit throttle when driven wheels are spinning
+    if (this.assists.tractionControl && effectiveThrottle > 0) {
+      let maxDrivenSlip = 0;
+      for (let i = 0; i < 4; i++) {
+        if (this.wheels[i].isDriven) {
+          maxDrivenSlip = Math.max(maxDrivenSlip, Math.abs(this.wheelStates[i].slipRatio));
+        }
+      }
+      if (maxDrivenSlip > 0.15) {
+        effectiveThrottle *= 0.3;
+      }
+    }
+
+    this.drivetrain.updateRpm(avgDrivenWheelAngVel, effectiveThrottle, dt);
     this.drivetrain.updateAutoShift(dt);
 
-    if (input.throttle > 0) {
-      const wheelTorque = this.drivetrain.getWheelTorque(input.throttle);
+    if (effectiveThrottle > 0) {
+      const wheelTorque = this.drivetrain.getWheelTorque(effectiveThrottle);
       for (let i = 0; i < 4; i++) {
         if (this.wheels[i].isDriven && this.wheelStates[i].onGround) {
           const driveForce = wheelTorque / this.wheels[i].tire.getRadius() / drivenCount;
           const ws = this.wheelStates[i];
-          
+
           let wheelForward = chassisForward.clone();
           if (this.wheels[i].isSteered) {
-            const steerAngle = input.steering * this.maxSteerAngle;
+            const steerAngle = effectiveSteering * this.maxSteerAngle;
             const steerQuat = new THREE.Quaternion().setFromAxisAngle(chassisUp, steerAngle);
             wheelForward.applyQuaternion(steerQuat);
           }
-          
+
           const forceVec = wheelForward.clone().multiplyScalar(driveForce);
           this.chassisBody.addForceAtPoint(
             { x: forceVec.x, y: forceVec.y, z: forceVec.z },

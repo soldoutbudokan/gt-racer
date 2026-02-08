@@ -9,6 +9,7 @@ export function ChaseCamera() {
   const posRef = useRef(new THREE.Vector3(0, 5, -10));
   const lookRef = useRef(new THREE.Vector3(0, 0, 0));
   const velRef = useRef({ x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0 });
+  const initialized = useRef(false);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -16,11 +17,25 @@ export function ChaseCamera() {
     const pos = state.position;
 
     const carPos = new THREE.Vector3(pos.x, pos.y, pos.z);
-    
-    // Get car's forward direction from the current camera target direction
-    const cameraForward = new THREE.Vector3()
-      .subVectors(lookRef.current, posRef.current)
-      .normalize();
+
+    if (!initialized.current) {
+      // Initialize camera behind the car based on its position
+      posRef.current.set(pos.x, pos.y + 5, pos.z - 10);
+      lookRef.current.set(pos.x, pos.y + 1, pos.z);
+      initialized.current = true;
+    }
+
+    // Use vehicle rotation for forward direction
+    const rotation = state.rotation;
+    let cameraForward: THREE.Vector3;
+    if (rotation) {
+      const quat = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
+      cameraForward = new THREE.Vector3(0, 0, 1).applyQuaternion(quat);
+    } else {
+      cameraForward = new THREE.Vector3()
+        .subVectors(lookRef.current, posRef.current)
+        .normalize();
+    }
 
     // Target camera position: behind and above car
     const speedFactor = Math.min(state.speedKmh / 200, 1);

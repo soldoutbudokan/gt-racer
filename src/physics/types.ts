@@ -60,6 +60,7 @@ export interface VehicleConfig {
   aero: AeroConfig;
   dimensions: DimensionsConfig;
   color: string;
+  bodyType?: 'sedan' | 'coupe' | 'supercar';
 }
 
 export interface WheelState {

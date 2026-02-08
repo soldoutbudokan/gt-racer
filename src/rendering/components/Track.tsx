@@ -8,7 +8,7 @@ interface TrackProps {
   bankAngles: number[];
 }
 
-function createTrackGeometry(spline: CatmullRomSpline, widths: number[], _bankAngles: number[], segments: number = 200): THREE.BufferGeometry {
+function createTrackGeometry(spline: CatmullRomSpline, widths: number[], bankAngles: number[], segments: number = 200): THREE.BufferGeometry {
   const vertices: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
@@ -21,6 +21,18 @@ function createTrackGeometry(spline: CatmullRomSpline, widths: number[], _bankAn
     const up = new THREE.Vector3(0, 1, 0);
     const right = new THREE.Vector3().crossVectors(tan, up).normalize();
 
+    // Interpolate bank angle
+    const bankIdx = Math.floor(t * (bankAngles.length - 1));
+    const bankT = t * (bankAngles.length - 1) - bankIdx;
+    const bankDeg = bankAngles[bankIdx] + (bankAngles[Math.min(bankIdx + 1, bankAngles.length - 1)] - bankAngles[bankIdx]) * bankT;
+    const bankRad = (bankDeg * Math.PI) / 180;
+
+    // Apply banking rotation around tangent
+    if (Math.abs(bankRad) > 0.001) {
+      right.applyAxisAngle(tan, bankRad);
+      up.applyAxisAngle(tan, bankRad);
+    }
+
     const widthIdx = Math.floor(t * (widths.length - 1));
     const widthT = t * (widths.length - 1) - widthIdx;
     const width = widths[widthIdx] + (widths[Math.min(widthIdx + 1, widths.length - 1)] - widths[widthIdx]) * widthT;
@@ -32,7 +44,7 @@ function createTrackGeometry(spline: CatmullRomSpline, widths: number[], _bankAn
     vertices.push(left.x, left.y, left.z);
     vertices.push(rightPt.x, rightPt.y, rightPt.z);
 
-    normals.push(0, 1, 0, 0, 1, 0);
+    normals.push(up.x, up.y, up.z, up.x, up.y, up.z);
     uvs.push(0, t * 20, 1, t * 20);
 
     if (i < segments) {

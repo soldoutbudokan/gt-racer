@@ -12,6 +12,7 @@ interface VehicleStoreState {
   handbrake: boolean;
   wheels: WheelState[];
   position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number; w: number };
   updateFromState: (state: VehicleState) => void;
 }
 
@@ -26,6 +27,7 @@ export const useVehicleStore = create<VehicleStoreState>((set) => ({
   handbrake: false,
   wheels: [],
   position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0, w: 1 },
   updateFromState: (state) => set({
     speed: state.speed,
     speedKmh: state.speedKmh,
@@ -37,5 +39,6 @@ export const useVehicleStore = create<VehicleStoreState>((set) => ({
     handbrake: state.handbrake,
     wheels: state.wheels,
     position: state.position,
+    rotation: state.rotation,
   }),
 }));

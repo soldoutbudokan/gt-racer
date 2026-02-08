@@ -1,7 +1,7 @@
-import { useRef, useEffect, useMemo, useCallback } from 'react';
+import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { RigidBody, Physics, type RapierRigidBody } from '@react-three/rapier';
+import { RigidBody, Physics, useRapier, type RapierRigidBody } from '@react-three/rapier';
 import { ProceduralCar } from '../components/ProceduralCar';
 import { Track } from '../components/Track';
 import { TrackEnvironment } from '../components/Environment';
@@ -15,11 +15,8 @@ import { inputManager } from '../../engine/InputManager';
 import { useVehicleStore } from '../../stores/useVehicleStore';
 import { useRaceStore } from '../../stores/useRaceStore';
 import { useGameStore } from '../../stores/useGameStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 import { CatmullRomSpline } from '../../utils/spline';
-import { audioEngine } from '../../audio/AudioEngine';
-import { EngineSynth } from '../../audio/EngineSynth';
-import { TireAudio } from '../../audio/TireAudio';
-import { WindAudio } from '../../audio/WindAudio';
 import { AIDriver } from '../../ai/AIDriver';
 import { RacingLine } from '../../ai/RacingLine';
 import sedanConfig from '../../data/cars/sedan-sport.json';
@@ -31,7 +28,6 @@ const AI_COLORS = ['#2E5BFF', '#00C853', '#FF6D00', '#AA00FF', '#FFD600'];
 
 interface AICarInstance {
   id: string;
-  bodyRef: React.RefObject<RapierRigidBody | null>;
   controller: VehicleController;
   driver: AIDriver;
   color: string;
@@ -40,22 +36,8 @@ interface AICarInstance {
 
 function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleController; spline: CatmullRomSpline }) {
   const chassisRef = useRef<RapierRigidBody>(null);
-  const engineSynth = useRef<EngineSynth | null>(null);
-  const tireAudio = useRef<TireAudio | null>(null);
-  const windAudio = useRef<WindAudio | null>(null);
-  const audioStarted = useRef(false);
-
-  const startCountdown = useCallback(() => {
-    const store = useRaceStore.getState();
-    if (store.countdown > 0 && !store.started) {
-      const elapsed = 4 - store.countdown;
-      if (elapsed < 4) {
-        setTimeout(() => {
-          useRaceStore.getState().updateCountdown(store.countdown - 1 / 60);
-        }, 16);
-      }
-    }
-  }, []);
+  const prevT = useRef(0);
+  const { world, rapier } = useRapier();
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -71,15 +53,22 @@ function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleCo
     if (!chassisRef.current) return;
 
     // Set physics body reference
-    const world = (state as any).__r3f?.root?.getState?.()?.rapier?.world;
     if (chassisRef.current && !vehicleController['chassisBody']) {
-      // Access rapier world from context
+      vehicleController.setChassisBody(chassisRef.current, world, rapier);
     }
 
     inputManager.update(dt);
 
     // Only allow driving after countdown
     const input = raceStore.started ? inputManager.inputState : { throttle: 0, brake: 0, steering: 0, handbrake: true };
+
+    // Wire driving assists from settings
+    const settings = useSettingsStore.getState();
+    vehicleController.setAssists({
+      tractionControl: settings.tractionControl,
+      abs: settings.abs,
+      steeringAssist: settings.steeringAssist,
+    });
 
     vehicleController.update(input, dt);
 
@@ -100,22 +89,20 @@ function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleCo
     const currentT = spline.nearestT(pos, 100);
     useRaceStore.getState().updateRacer('player', { distanceAlongTrack: currentT });
 
-    // Audio
-    if (!audioStarted.current && audioEngine.isUnlocked()) {
-      engineSynth.current = new EngineSynth();
-      engineSynth.current.start(0.5);
-      tireAudio.current = new TireAudio();
-      tireAudio.current.start(0.3);
-      windAudio.current = new WindAudio();
-      windAudio.current.start(0.2);
-      audioStarted.current = true;
-    }
+    // Lap crossing detection
+    useRaceStore.getState().crossCheckpoint('player', currentT, prevT.current, raceStore.raceTime);
+    prevT.current = currentT;
 
-    if (audioStarted.current) {
-      engineSynth.current?.update(vehicleState.rpm, input.throttle);
-      const maxSlip = vehicleState.wheels.reduce((max, w) => Math.max(max, Math.abs(w.slipAngle)), 0);
-      tireAudio.current?.update(maxSlip, vehicleState.speed);
-      windAudio.current?.update(vehicleState.speed);
+    // Update positions periodically
+    useRaceStore.getState().updatePositions();
+
+    // Check if player finished
+    const playerRacer = raceStore.racers.find(r => r.isPlayer);
+    if (playerRacer?.finished && !raceStore.finished) {
+      useRaceStore.getState().finishRace();
+      setTimeout(() => {
+        useGameStore.getState().setScene('results');
+      }, 3000);
     }
 
     // Pause handling
@@ -123,14 +110,6 @@ function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleCo
       useGameStore.getState().togglePause();
     }
   });
-
-  useEffect(() => {
-    return () => {
-      engineSynth.current?.stop();
-      tireAudio.current?.stop();
-      windAudio.current?.stop();
-    };
-  }, []);
 
   const steeringAngle = useVehicleStore((s) => s.steering * 0.5);
   const wheels = useVehicleStore((s) => s.wheels);
@@ -141,7 +120,7 @@ function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleCo
       type="dynamic"
       colliders="cuboid"
       mass={sedanConfig.specs.mass}
-      position={[0, 2, 0]}
+      position={trackData.startPositions[0] as [number, number, number]}
       linearDamping={0.1}
       angularDamping={0.5}
       onCollisionEnter={() => {}}
@@ -161,12 +140,18 @@ function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleCo
 
 function AICar({ aiCar, spline }: { aiCar: AICarInstance; spline: CatmullRomSpline }) {
   const chassisRef = useRef<RapierRigidBody>(null);
+  const prevT = useRef(0);
+  const { world, rapier } = useRapier();
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
     const paused = useGameStore.getState().paused;
     const raceStarted = useRaceStore.getState().started;
     if (paused || !raceStarted || !chassisRef.current) return;
+
+    if (!aiCar.controller['chassisBody']) {
+      aiCar.controller.setChassisBody(chassisRef.current, world, rapier);
+    }
 
     const pos = chassisRef.current.translation();
     const rot = chassisRef.current.rotation();
@@ -179,6 +164,11 @@ function AICar({ aiCar, spline }: { aiCar: AICarInstance; spline: CatmullRomSpli
 
     aiCar.currentT = spline.nearestT(position, 100);
 
+    // Lap crossing detection for AI
+    const raceTime = useRaceStore.getState().raceTime;
+    useRaceStore.getState().crossCheckpoint(aiCar.id, aiCar.currentT, prevT.current, raceTime);
+    prevT.current = aiCar.currentT;
+
     aiCar.driver.update(position, velocity, forward, aiCar.currentT, dt);
     aiCar.controller.update(aiCar.driver.input, dt);
 
@@ -186,6 +176,7 @@ function AICar({ aiCar, spline }: { aiCar: AICarInstance; spline: CatmullRomSpli
   });
 
   const startIdx = parseInt(aiCar.id.split('_')[1]) + 1;
+  const startPos = trackData.startPositions[startIdx] || [startIdx % 2 === 0 ? 2 : -2, 0.5, -(startIdx + 1) * 6];
 
   return (
     <RigidBody
@@ -193,7 +184,7 @@ function AICar({ aiCar, spline }: { aiCar: AICarInstance; spline: CatmullRomSpli
       type="dynamic"
       colliders="cuboid"
       mass={sedanConfig.specs.mass}
-      position={[startIdx % 2 === 0 ? 2 : -2, 2, -(startIdx + 1) * 6]}
+      position={startPos as [number, number, number]}
       linearDamping={0.1}
       angularDamping={0.5}
     >
@@ -243,7 +234,6 @@ export function RaceScene() {
       const controller = new VehicleController(sedanConfig as unknown as VehicleConfig);
       cars.push({
         id: `ai_${i}`,
-        bodyRef: { current: null },
         controller,
         driver,
         color: AI_COLORS[i],
@@ -253,10 +243,8 @@ export function RaceScene() {
     return cars;
   }, [racingLine]);
 
-  useEffect(() => {
-    audioEngine.init();
+  useMemo(() => {
     useRaceStore.getState().startRace(trackData.laps, AI_COUNT);
-    return () => { };
   }, []);
 
   if (scene !== 'racing') return null;

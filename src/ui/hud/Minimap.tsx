@@ -41,6 +41,30 @@ export function Minimap({ splinePoints }: MinimapProps) {
       <svg viewBox="0 0 100 100" className="w-full h-full">
         <path d={pathD} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
         <path d={pathD} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        {/* Car position dots */}
+        {splinePoints.length > 0 && racers.length > 0 && racers.map((racer) => {
+          const totalPoints = splinePoints.length;
+          if (totalPoints === 0) return null;
+          const t = racer.distanceAlongTrack ?? 0;
+          if (!Number.isFinite(t)) return null;
+          const scaledT = Math.abs(t) * totalPoints;
+          const idx = Math.min(Math.max(Math.floor(scaledT) % totalPoints, 0), totalPoints - 1);
+          const nextIdx = (idx + 1) % totalPoints;
+          const localT = scaledT - Math.floor(scaledT);
+
+          const x = ((splinePoints[idx][0] * (1 - localT) + splinePoints[nextIdx][0] * localT) - bounds.minX) * scale;
+          const z = ((splinePoints[idx][2] * (1 - localT) + splinePoints[nextIdx][2] * localT) - bounds.minZ) * scale;
+
+          return (
+            <circle
+              key={racer.id}
+              cx={x}
+              cy={z}
+              r={racer.isPlayer ? 3 : 2}
+              fill={racer.isPlayer ? '#FFD700' : '#FF4444'}
+            />
+          );
+        })}
       </svg>
     </div>
   );

@@ -30,6 +30,7 @@ interface RaceState {
   updateRaceTime: (dt: number) => void;
   updateRacer: (id: string, updates: Partial<RacerInfo>) => void;
   updatePositions: () => void;
+  crossCheckpoint: (racerId: string, newT: number, prevT: number, raceTime: number) => void;
   finishRace: () => void;
   resetRace: () => void;
 }
@@ -114,6 +115,44 @@ export const useRaceStore = create<RaceState>((set, get) => ({
       playerLastLap: player?.lapTimes[player.lapTimes.length - 1] ?? 0,
     };
   }),
+
+  crossCheckpoint: (racerId, newT, prevT, raceTime) => {
+    // Detect start/finish crossing: previous t near end of track, new t near start
+    if (prevT > 0.85 && newT < 0.15) {
+      set((state) => {
+        const racers = state.racers.map((r) => {
+          if (r.id !== racerId) return r;
+          if (r.finished) return r;
+
+          const lapTime = raceTime - r.totalTime;
+          const newLapTimes = [...r.lapTimes, lapTime];
+          const newBestLap = Math.min(r.bestLapTime, lapTime);
+          const newLap = r.currentLap + 1;
+          const isFinished = newLap > state.totalLaps;
+
+          return {
+            ...r,
+            currentLap: isFinished ? state.totalLaps : newLap,
+            lapTimes: newLapTimes,
+            bestLapTime: newBestLap,
+            totalTime: raceTime,
+            finished: isFinished,
+          };
+        });
+
+        const player = racers.find((r) => r.isPlayer);
+        return {
+          racers,
+          playerLap: player?.currentLap ?? 1,
+          playerBestLap: player?.bestLapTime ?? Infinity,
+          playerLastLap: player?.lapTimes[player.lapTimes.length - 1] ?? 0,
+        };
+      });
+
+      // Update positions after lap change
+      get().updatePositions();
+    }
+  },
 
   finishRace: () => set({ finished: true }),
   resetRace: () => set({

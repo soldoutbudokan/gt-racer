@@ -6,13 +6,7 @@ interface SettingsState {
   shadowQuality: 'off' | 'low' | 'medium' | 'high';
   postProcessing: boolean;
   antiAliasing: boolean;
-  
-  // Audio
-  masterVolume: number;
-  engineVolume: number;
-  sfxVolume: number;
-  musicVolume: number;
-  
+
   // Assists
   steeringAssist: boolean;
   brakingAssist: boolean;
@@ -26,10 +20,6 @@ interface SettingsState {
   setShadowQuality: (q: 'off' | 'low' | 'medium' | 'high') => void;
   setPostProcessing: (v: boolean) => void;
   setAntiAliasing: (v: boolean) => void;
-  setMasterVolume: (v: number) => void;
-  setEngineVolume: (v: number) => void;
-  setSfxVolume: (v: number) => void;
-  setMusicVolume: (v: number) => void;
   setSteeringAssist: (v: boolean) => void;
   setBrakingAssist: (v: boolean) => void;
   setTractionControl: (v: boolean) => void;
@@ -45,10 +35,6 @@ export const useSettingsStore = create<SettingsState>()(
       shadowQuality: 'medium',
       postProcessing: true,
       antiAliasing: true,
-      masterVolume: 0.8,
-      engineVolume: 0.7,
-      sfxVolume: 0.8,
-      musicVolume: 0.5,
       steeringAssist: true,
       brakingAssist: true,
       tractionControl: true,
@@ -59,10 +45,6 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowQuality: (q) => set({ shadowQuality: q }),
       setPostProcessing: (v) => set({ postProcessing: v }),
       setAntiAliasing: (v) => set({ antiAliasing: v }),
-      setMasterVolume: (v) => set({ masterVolume: v }),
-      setEngineVolume: (v) => set({ engineVolume: v }),
-      setSfxVolume: (v) => set({ sfxVolume: v }),
-      setMusicVolume: (v) => set({ musicVolume: v }),
       setSteeringAssist: (v) => set({ steeringAssist: v }),
       setBrakingAssist: (v) => set({ brakingAssist: v }),
       setTractionControl: (v) => set({ tractionControl: v }),

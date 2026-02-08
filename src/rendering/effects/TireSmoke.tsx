@@ -24,7 +24,7 @@ export function TireSmoke() {
     const wheels = useVehicleStore.getState().wheels;
 
     // Spawn smoke from rear wheels with slip
-    for (let w = 2; w < 4 && w < wheels.length; w++) {
+    for (let w = 0; w < 4 && w < wheels.length; w++) {
       const wheel = wheels[w];
       if (!wheel.onGround) continue;
       const totalSlip = Math.abs(wheel.slipAngle) + Math.abs(wheel.slipRatio);
