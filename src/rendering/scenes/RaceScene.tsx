@@ -1,8 +1,8 @@
 import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { RigidBody, Physics, useRapier, type RapierRigidBody } from '@react-three/rapier';
-import { ProceduralCar } from '../components/ProceduralCar';
+import { RigidBody, Physics, useRapier, CuboidCollider, type RapierRigidBody } from '@react-three/rapier';
+import { ProceduralCar, getProportions } from '../components/ProceduralCar';
 import { Track } from '../components/Track';
 import { TrackEnvironment } from '../components/Environment';
 import { Lighting } from '../components/Lighting';
@@ -32,6 +32,17 @@ interface AICarInstance {
   driver: AIDriver;
   color: string;
   currentT: number;
+}
+
+function getCollisionDims(config: VehicleConfig) {
+  const bodyType = (config.bodyType || 'sedan') as 'sedan' | 'coupe' | 'supercar';
+  const props = getProportions(bodyType);
+  const w = config.dimensions.trackWidth * props.bodyWidthScale;
+  const h = props.roofHeight;
+  const l = config.dimensions.wheelbase * props.lengthFactor;
+  const groundClearance = 0.08;
+  const centerY = (groundClearance + h) / 2;
+  return { w, h, l, centerY };
 }
 
 function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleController; spline: CatmullRomSpline }) {
@@ -114,26 +125,28 @@ function PlayerCar({ vehicleController, spline }: { vehicleController: VehicleCo
   const steeringAngle = useVehicleStore((s) => s.steering * 0.5);
   const wheels = useVehicleStore((s) => s.wheels);
 
+  const dims = getCollisionDims(sedanConfig as unknown as VehicleConfig);
+  const startPos = trackData.startPositions[0] as [number, number, number];
+
   return (
     <RigidBody
       ref={chassisRef}
       type="dynamic"
-      colliders="cuboid"
+      colliders={false}
       mass={sedanConfig.specs.mass}
-      position={trackData.startPositions[0] as [number, number, number]}
+      position={[startPos[0], dims.centerY + 0.02, startPos[2]]}
       linearDamping={0.1}
       angularDamping={0.5}
+      linearVelocity={[0, 0, 0]}
+      angularVelocity={[0, 0, 0]}
       onCollisionEnter={() => {}}
     >
+      <CuboidCollider args={[dims.w / 2, dims.h / 2, dims.l / 2]} position={[0, dims.centerY, 0]} />
       <ProceduralCar
         config={sedanConfig as unknown as VehicleConfig}
         wheelStates={wheels}
         steeringAngle={steeringAngle}
       />
-      {/* Invisible collision box */}
-      <mesh visible={false}>
-        <boxGeometry args={[1.7, 0.8, 4.5]} />
-      </mesh>
     </RigidBody>
   );
 }
@@ -177,24 +190,29 @@ function AICar({ aiCar, spline }: { aiCar: AICarInstance; spline: CatmullRomSpli
 
   const startIdx = parseInt(aiCar.id.split('_')[1]) + 1;
   const startPos = trackData.startPositions[startIdx] || [startIdx % 2 === 0 ? 2 : -2, 0.5, -(startIdx + 1) * 6];
+  const dims = getCollisionDims(sedanConfig as unknown as VehicleConfig);
 
   return (
     <RigidBody
       ref={chassisRef}
       type="dynamic"
-      colliders="cuboid"
+      colliders={false}
       mass={sedanConfig.specs.mass}
-      position={startPos as [number, number, number]}
+      position={[
+        (startPos as [number, number, number])[0],
+        dims.centerY + 0.02,
+        (startPos as [number, number, number])[2],
+      ]}
       linearDamping={0.1}
       angularDamping={0.5}
+      linearVelocity={[0, 0, 0]}
+      angularVelocity={[0, 0, 0]}
     >
+      <CuboidCollider args={[dims.w / 2, dims.h / 2, dims.l / 2]} position={[0, dims.centerY, 0]} />
       <ProceduralCar
         config={sedanConfig as unknown as VehicleConfig}
         color={aiCar.color}
       />
-      <mesh visible={false}>
-        <boxGeometry args={[1.7, 0.8, 4.5]} />
-      </mesh>
     </RigidBody>
   );
 }
