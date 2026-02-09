@@ -1,4 +1,5 @@
 import type { SuspensionConfig } from './types';
+import { clamp } from '../utils/math';
 
 export class SuspensionModel {
   private config: SuspensionConfig;
@@ -11,7 +12,8 @@ export class SuspensionModel {
     if (compression <= 0) return 0;
     const clampedCompression = Math.min(compression, this.config.maxTravel);
     const springForce = this.config.springRate * clampedCompression;
-    const damperForce = this.config.dampingRate * compressionVelocity;
+    const maxVel = this.config.maxDamperVelocity ?? 4.0;
+    const damperForce = this.config.dampingRate * clamp(compressionVelocity, -maxVel, maxVel);
     return Math.max(0, springForce + damperForce);
   }
 

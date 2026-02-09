@@ -10,6 +10,7 @@ export interface SuspensionConfig {
   dampingRate: number;
   restLength: number;
   maxTravel: number;
+  maxDamperVelocity?: number;
 }
 
 export interface EngineConfig {

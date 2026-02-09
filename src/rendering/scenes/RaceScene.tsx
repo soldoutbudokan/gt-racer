@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, Physics, useRapier, CuboidCollider, type RapierRigidBody } from '@react-three/rapier';
@@ -8,6 +8,7 @@ import { TrackEnvironment } from '../components/Environment';
 import { Lighting } from '../components/Lighting';
 import { ChaseCamera } from '../cameras/ChaseCamera';
 import { PostProcessingEffects } from '../effects/PostProcessing';
+import { Sky } from '@react-three/drei';
 import { TireSmoke } from '../effects/TireSmoke';
 import { SkidMarks } from '../effects/SkidMarks';
 import { VehicleController } from '../../physics/VehicleController';
@@ -261,7 +262,7 @@ export function RaceScene() {
     return cars;
   }, [racingLine]);
 
-  useMemo(() => {
+  useEffect(() => {
     useRaceStore.getState().startRace(trackData.laps, AI_COUNT);
   }, []);
 
@@ -305,8 +306,15 @@ export function RaceScene() {
       <ChaseCamera />
 
       {/* Sky */}
-      <color attach="background" args={['#87CEEB']} />
-      <fog attach="fog" args={['#87CEEB', 100, 400]} />
+      <Sky
+        distance={450000}
+        sunPosition={[50, 80, 30]}
+        turbidity={8}
+        rayleigh={2}
+        mieCoefficient={0.005}
+        mieDirectionalG={0.8}
+      />
+      <fog attach="fog" args={['#c8dff5', 150, 500]} />
     </>
   );
 }
