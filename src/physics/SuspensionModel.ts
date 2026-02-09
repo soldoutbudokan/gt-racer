@@ -11,7 +11,9 @@ export class SuspensionModel {
     if (compression <= 0) return 0;
     const clampedCompression = Math.min(compression, this.config.maxTravel);
     const springForce = this.config.springRate * clampedCompression;
-    const damperForce = this.config.dampingRate * compressionVelocity;
+    const maxVelocity = 4;
+    const clampedVelocity = Math.max(-maxVelocity, Math.min(compressionVelocity, maxVelocity));
+    const damperForce = this.config.dampingRate * clampedVelocity;
     return Math.max(0, springForce + damperForce);
   }
 

@@ -8,7 +8,7 @@ interface TrackProps {
   bankAngles: number[];
 }
 
-function createTrackGeometry(spline: CatmullRomSpline, widths: number[], bankAngles: number[], segments: number = 200): THREE.BufferGeometry {
+function createTrackGeometry(spline: CatmullRomSpline, widths: number[], bankAngles: number[], segments: number = 300): THREE.BufferGeometry {
   const vertices: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
@@ -63,6 +63,90 @@ function createTrackGeometry(spline: CatmullRomSpline, widths: number[], bankAng
   return geo;
 }
 
+interface CurbSegment {
+  position: [number, number, number];
+  rotationY: number;
+  length: number;
+  color: string;
+}
+
+interface CenterLineSegment {
+  position: [number, number, number];
+  rotationY: number;
+  length: number;
+}
+
+function createCurbSegments(
+  spline: CatmullRomSpline,
+  widths: number[],
+  segments: number = 140,
+): { left: CurbSegment[]; right: CurbSegment[] } {
+  const left: CurbSegment[] = [];
+  const right: CurbSegment[] = [];
+  const curbWidth = 0.35;
+  const curbHeight = 0.06;
+
+  for (let i = 0; i < segments; i++) {
+    const t = i / segments;
+    const tNext = (i + 1) / segments;
+    const pos = spline.interpolate(t);
+    const next = spline.interpolate(tNext);
+    const tan = next.clone().sub(pos).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const rightVec = new THREE.Vector3().crossVectors(tan, up).normalize();
+
+    const widthIdx = Math.floor(t * (widths.length - 1));
+    const widthT = t * (widths.length - 1) - widthIdx;
+    const width = widths[widthIdx] + (widths[Math.min(widthIdx + 1, widths.length - 1)] - widths[widthIdx]) * widthT;
+    const offset = width / 2 + curbWidth / 2;
+
+    const center = pos.clone().add(next).multiplyScalar(0.5);
+    const rotationY = Math.atan2(tan.x, tan.z);
+    const length = Math.max(0.6, pos.distanceTo(next));
+    const color = i % 2 === 0 ? '#f5f5f5' : '#d93a2f';
+    const y = curbHeight / 2 + 0.01;
+
+    left.push({
+      position: [center.x - rightVec.x * offset, y, center.z - rightVec.z * offset],
+      rotationY,
+      length,
+      color,
+    });
+    right.push({
+      position: [center.x + rightVec.x * offset, y, center.z + rightVec.z * offset],
+      rotationY,
+      length,
+      color,
+    });
+  }
+
+  return { left, right };
+}
+
+function createCenterLineSegments(
+  spline: CatmullRomSpline,
+  segments: number = 160,
+): CenterLineSegment[] {
+  const line: CenterLineSegment[] = [];
+  for (let i = 0; i < segments; i++) {
+    if (i % 2 !== 0) continue;
+    const t = i / segments;
+    const tNext = (i + 1) / segments;
+    const pos = spline.interpolate(t);
+    const next = spline.interpolate(tNext);
+    const center = pos.clone().add(next).multiplyScalar(0.5);
+    const tan = next.clone().sub(pos).normalize();
+    const rotationY = Math.atan2(tan.x, tan.z);
+    const length = Math.max(0.6, pos.distanceTo(next));
+    line.push({
+      position: [center.x, 0.03, center.z],
+      rotationY,
+      length,
+    });
+  }
+  return line;
+}
+
 function createWallGeometry(spline: CatmullRomSpline, widths: number[], side: 'left' | 'right', segments: number = 200, wallHeight: number = 1.0): THREE.BufferGeometry {
   const vertices: number[] = [];
   const normals: number[] = [];
@@ -114,6 +198,8 @@ export function Track({ splinePoints, widths, bankAngles }: TrackProps) {
   const trackGeo = useMemo(() => createTrackGeometry(spline, widths, bankAngles), [spline, widths, bankAngles]);
   const leftWallGeo = useMemo(() => createWallGeometry(spline, widths, 'left'), [spline, widths]);
   const rightWallGeo = useMemo(() => createWallGeometry(spline, widths, 'right'), [spline, widths]);
+  const curbSegments = useMemo(() => createCurbSegments(spline, widths), [spline, widths]);
+  const centerLineSegments = useMemo(() => createCenterLineSegments(spline), [spline]);
 
   return (
     <group>
@@ -133,6 +219,43 @@ export function Track({ splinePoints, widths, bankAngles }: TrackProps) {
           roughness={0.9}
         />
       </mesh>
+
+      {/* Center line dashes */}
+      {centerLineSegments.map((segment, index) => (
+        <mesh
+          key={`centerline-${index}`}
+          position={segment.position}
+          rotation={[0, segment.rotationY, 0]}
+          receiveShadow
+        >
+          <boxGeometry args={[0.15, 0.02, segment.length * 0.7]} />
+          <meshStandardMaterial color="#f5f5f5" roughness={0.6} />
+        </mesh>
+      ))}
+
+      {/* Curbs */}
+      {curbSegments.left.map((segment, index) => (
+        <mesh
+          key={`curb-left-${index}`}
+          position={segment.position}
+          rotation={[0, segment.rotationY, 0]}
+          receiveShadow
+        >
+          <boxGeometry args={[0.35, 0.06, segment.length]} />
+          <meshStandardMaterial color={segment.color} roughness={0.6} />
+        </mesh>
+      ))}
+      {curbSegments.right.map((segment, index) => (
+        <mesh
+          key={`curb-right-${index}`}
+          position={segment.position}
+          rotation={[0, segment.rotationY, 0]}
+          receiveShadow
+        >
+          <boxGeometry args={[0.35, 0.06, segment.length]} />
+          <meshStandardMaterial color={segment.color} roughness={0.6} />
+        </mesh>
+      ))}
 
       {/* Barriers */}
       <mesh geometry={leftWallGeo}>
